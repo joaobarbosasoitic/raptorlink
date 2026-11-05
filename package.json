@@ -1,0 +1,20 @@
+{
+  "name": "raptorlink",
+  "version": "1.0.0",
+  "private": true,
+  "description": "RaptorLink — simulação IoT dos sensores de um F-22 Raptor com MQTT e painel web em tempo real",
+  "type": "module",
+  "scripts": {
+    "broker": "docker compose up -d",
+    "broker:logs": "docker compose logs -f mosquitto",
+    "broker:stop": "docker compose down",
+    "engine": "node engine/index.js",
+    "web": "python3 -m http.server 8080 -d cockpit"
+  },
+  "dependencies": {
+    "mqtt": "^5.10.1"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

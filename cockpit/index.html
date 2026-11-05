@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RaptorLink</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=B612:wght@400;700&family=B612+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/cockpit.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script defer src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
+  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
+  <script type="module" src="js/main.js"></script>
+</head>
+<body>
+  <header id="topbar">
+    <div class="brand" title="RaptorLink — simulação IoT dos sensores de um F-22 Raptor">RAPTOR<b>LINK</b></div>
+
+    <nav class="seg tabs" id="tabs" aria-label="Visão">
+      <button data-tab="cockpit" class="on">COCKPIT</button>
+      <button data-tab="ground">ESTAÇÃO DE SOLO</button>
+    </nav>
+
+    <div class="group">
+      <span class="lbl">FONTE</span>
+      <div class="seg" id="srcSeg">
+        <button data-src="mock" class="on">MOCK</button>
+        <button data-src="mqtt">MQTT</button>
+      </div>
+    </div>
+
+    <div class="group broker">
+      <input id="brokerUrl" spellcheck="false" aria-label="URL do broker MQTT (WebSocket)">
+      <input id="topicRoot" class="root" spellcheck="false" aria-label="Prefixo dos tópicos" title="Prefixo dos tópicos">
+      <button id="btnConnect">CONECTAR</button>
+    </div>
+
+    <div class="group status"><i id="statusDot" class="mock"></i><span id="statusText">MOCK LOCAL</span></div>
+    <span id="engineStatus" class="pill">MOTOR —</span>
+
+    <div class="spacer"></div>
+
+    <div class="group stat"><span class="lbl">MSG/S</span><b id="msgRate">0</b></div>
+    <button id="btnMute" title="Som (M)">SOM ON</button>
+  </header>
+
+  <main id="stage">
+    <div id="cockpit">
+
+      <!-- ============ CONSOLE ESQUERDO ============ -->
+      <section class="console" id="consoleL">
+        <div class="panel">
+          <h3>THROTTLE</h3>
+          <div class="throttle">
+            <div class="thr-scale"><span class="ab">AB</span><span>MIL</span><span>CRZ</span><span>IDLE</span></div>
+            <div class="thr-track">
+              <input type="range" id="throttle" min="0" max="100" value="78" aria-label="Manete de potência">
+              <i class="ab-gate"></i>
+            </div>
+            <div class="thr-read"><b id="thrVal">78</b><small>%</small><em id="thrAb">AB</em></div>
+          </div>
+          <p class="hint">PgUp / PgDn</p>
+        </div>
+
+        <div class="panel">
+          <h3>ARMAMENTO</h3>
+          <button class="sw guard" id="swArm" data-cmd="masterArm"><span class="sw-lever"></span><span class="sw-lbl">MASTER ARM</span><em id="armTxt">SAFE</em></button>
+        </div>
+
+        <div class="panel">
+          <h3>TREM · FLAPS · FREIOS</h3>
+          <button class="gear-handle" id="swGear" data-cmd="gear">
+            <span class="wheel"></span>
+            <span class="gear-lamps"><i id="gl1"></i><i id="gl2"></i><i id="gl3"></i></span>
+            <span class="sw-lbl">GEAR <em id="gearTxt">UP</em></span>
+          </button>
+          <div class="sw-grid">
+            <button class="sw" id="swFlaps" data-cmd="flaps" data-val="next"><span class="sw-lever"></span><span class="sw-lbl">FLAPS</span><em id="flapsTxt">UP</em></button>
+            <button class="sw" id="swSb" data-cmd="speedBrake"><span class="sw-lever"></span><span class="sw-lbl">SPD BRK</span><em id="sbTxt">IN</em></button>
+            <button class="sw" id="swApu" data-cmd="apu"><span class="sw-lever"></span><span class="sw-lbl">APU</span><em id="apuTxt">OFF</em></button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>CONTRAMEDIDAS</h3>
+          <div class="cm">
+            <button class="push" data-cmd="countermeasure" data-val="flare">FLARE<em id="flrCnt">60</em></button>
+            <button class="push" data-cmd="countermeasure" data-val="chaff">CHAFF<em id="chfCnt">60</em></button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ PAINEL CENTRAL ============ -->
+      <section id="center">
+        <div id="rowHud">
+          <div class="hud-frame">
+            <canvas data-screen="hud" data-w="620" data-h="200"></canvas>
+          </div>
+        </div>
+
+        <div id="rowUpper">
+          <div class="ufd"><canvas data-screen="ufdL" data-w="300" data-h="136"></canvas></div>
+          <div id="icp"></div>
+          <div class="ufd"><canvas data-screen="ufdR" data-w="300" data-h="136"></canvas></div>
+        </div>
+
+        <div id="rowMfd">
+          <div class="mfd" data-screen="mfdL" data-size="280"></div>
+          <div class="mfd pmd" data-screen="pmd" data-size="300"></div>
+          <div class="mfd" data-screen="mfdR" data-size="280"></div>
+        </div>
+
+        <div id="rowLower">
+          <div class="annun">
+            <div class="lamps big">
+              <button class="lamp red" data-lamp="mwarn" data-ack="warning" title="Clique para reconhecer (Esc)">MASTER<br>WARN</button>
+              <button class="lamp amber" data-lamp="mcaut" data-ack="caution" title="Clique para reconhecer (Esc)">MASTER<br>CAUTION</button>
+            </div>
+            <div class="lamps">
+              <div class="lamp red" data-lamp="mlnch">MSL<br>LAUNCH</div>
+              <div class="lamp green" data-lamp="lock">LOCK</div>
+              <div class="lamp green" data-lamp="shoot">SHOOT</div>
+              <div class="lamp red" data-lamp="arm">ARM</div>
+              <div class="lamp amber" data-lamp="bay">BAY<br>OPEN</div>
+              <div class="lamp amber" data-lamp="fuel">BINGO</div>
+            </div>
+          </div>
+
+          <div class="mfd" data-screen="smd" data-size="240"></div>
+
+          <div class="annun">
+            <div class="lamps">
+              <div class="lamp amber" data-lamp="abL">AB L</div>
+              <div class="lamp amber" data-lamp="abR">AB R</div>
+              <div class="lamp green" data-lamp="gearDn">GEAR<br>DOWN</div>
+              <div class="lamp red" data-lamp="gearTr">GEAR<br>TRANSIT</div>
+            </div>
+            <div class="standby">
+              <h4>STBY</h4>
+              <dl>
+                <dt>IAS</dt><dd id="sbyIas">--</dd>
+                <dt>ALT</dt><dd id="sbyAlt">--</dd>
+                <dt>HDG</dt><dd id="sbyHdg">--</dd>
+                <dt>MACH</dt><dd id="sbyMach">--</dd>
+                <dt>FUEL</dt><dd id="sbyFuel">--</dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ CONSOLE DIREITO ============ -->
+      <section class="console" id="consoleR">
+        <div class="panel">
+          <h3>SIDESTICK</h3>
+          <div class="stick-box">
+            <i class="cross-h"></i><i class="cross-v"></i>
+            <div id="stickKnob"></div>
+          </div>
+          <div class="stick-read">
+            <span>P <b id="stkP">0</b></span><span>R <b id="stkR">0</b></span><span>G <b id="stkG">1.0</b></span>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>HOTAS</h3>
+          <div class="hotas">
+            <button class="push" data-cmd="targetLock" data-val="toggle">TMS<small>LOCK / UNLK</small></button>
+            <button class="push" data-cmd="targetLock" data-val="next">NEXT<small>TGT</small></button>
+            <button class="push" data-cmd="weaponSelect" data-val="next">WPN<small id="wpnTxt">AIM-120</small></button>
+            <button class="push" data-cmd="radarMode" data-val="next">RDR<small>MODE</small></button>
+          </div>
+          <button class="pickle" data-cmd="pickle">PICKLE<small>FIRE</small></button>
+        </div>
+
+        <div class="panel keys">
+          <h3>ATALHOS</h3>
+          <dl>
+            <dt>L</dt><dd>Travar / destravar alvo</dd>
+            <dt>N</dt><dd>Próximo alvo</dd>
+            <dt>W</dt><dd>Selecionar arma</dd>
+            <dt>Espaço</dt><dd>Disparar</dd>
+            <dt>A</dt><dd>Master arm</dd>
+            <dt>F / C</dt><dd>Flare / chaff</dd>
+            <dt>R</dt><dd>Modo radar</dd>
+            <dt>[ ]</dt><dd>Alcance radar</dd>
+            <dt>G · K · B</dt><dd>Trem · flaps · freio</dd>
+            <dt>Esc</dt><dd>Reconhecer alertas</dd>
+            <dt>M</dt><dd>Som</dd>
+          </dl>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- ============ ESTAÇÃO DE SOLO ============ -->
+  <main id="ground" hidden>
+    <section class="gs-card gs-map">
+      <header>
+        <h2>Posição e rota</h2>
+        <label class="gs-check"><input type="checkbox" id="gsFollow" checked> seguir avião</label>
+      </header>
+      <div id="gsMap"></div>
+      <footer id="gsMapInfo">aguardando f22/nav…</footer>
+    </section>
+
+    <section class="gs-card gs-cmd">
+      <header><h2>Comandos</h2><span class="topic">→ f22/comandos · QoS 1</span></header>
+      <div class="cmd-block">
+        <h3>Rajada de vento</h3>
+        <label>Intensidade <output></output> kt<input type="range" id="cmdGustKt" min="10" max="100" step="5" value="45"></label>
+        <label>Duração <output></output> s<input type="range" id="cmdGustDur" min="2" max="30" value="10"></label>
+        <button id="cmdGust" class="gs-btn">Injetar rajada</button>
+      </div>
+      <div class="cmd-block">
+        <h3>Novo alvo</h3>
+        <div class="cmd-row">
+          <label>Tipo
+            <select id="cmdTgtType"><option value="hostil">hostil</option><option value="amigo">amigo</option><option value="desconhecido">desconhecido</option></select>
+          </label>
+          <label>Marcação °<input type="number" id="cmdTgtBrg" min="0" max="359" placeholder="aleat."></label>
+          <label>Dist. NM<input type="number" id="cmdTgtDist" min="2" max="90" placeholder="aleat."></label>
+        </div>
+        <button id="cmdTarget" class="gs-btn">Criar alvo</button>
+      </div>
+      <div class="cmd-block cmd-actions">
+        <button id="cmdThreat" class="gs-btn danger">Lançar míssil inimigo</button>
+        <button id="cmdManeuver" class="gs-btn">Manobra alto G</button>
+        <button id="cmdPause" class="gs-btn">❚❚ Pausar</button>
+        <button id="cmdReset" class="gs-btn danger">Reiniciar</button>
+      </div>
+      <h3 class="cmd-log-title">Últimos comandos</h3>
+      <ul id="cmdLog" class="cmd-log"></ul>
+    </section>
+
+    <section class="gs-card gs-alerts">
+      <header><h2>Alertas</h2><span id="gsAlertCount" class="topic">0 ativos</span></header>
+      <ul id="gsAlertsActive" class="alert-list"></ul>
+      <h3>Histórico</h3>
+      <ol id="gsAlertsHist" class="alert-hist"></ol>
+    </section>
+
+    <section class="gs-card gs-missiles">
+      <header>
+        <h2>Rastreamento de mísseis</h2>
+        <div class="gs-tools">
+          <span id="mslCount" class="topic">nenhum em voo</span>
+          <span class="topic">f22/misseis · 4 Hz com míssil no ar</span>
+          <label class="gs-check"><input type="checkbox" id="mslAuto" checked> acompanhar novos lançamentos</label>
+        </div>
+      </header>
+      <div class="msl-wrap">
+        <table>
+          <thead><tr><th></th><th>Míssil</th><th>Lado</th><th>Tipo</th><th>Estado</th><th>Origem → alvo</th><th>Dist. ao alvo</th><th>Impacto em</th><th>Progresso</th><th>Velocidade</th><th>Altitude</th><th>Tempo de voo</th><th></th></tr></thead>
+          <tbody id="mslBody"></tbody>
+        </table>
+      </div>
+      <h3>Últimos desfechos</h3>
+      <ol id="mslHist" class="msl-hist"></ol>
+    </section>
+
+    <section class="gs-card gs-chart"><header><h2>Altitude e velocidade</h2><span class="topic">f22/nav</span></header><div class="chart-box"><canvas id="chNav"></canvas></div></section>
+    <section class="gs-card gs-chart"><header><h2>Atitude e força G</h2><span class="topic">f22/atitude</span></header><div class="chart-box"><canvas id="chAtt"></canvas></div></section>
+    <section class="gs-card gs-chart"><header><h2>Motores</h2><span class="topic">f22/motores</span></header><div class="chart-box"><canvas id="chEng"></canvas></div></section>
+    <section class="gs-card gs-chart"><header><h2>Combustível</h2><span class="topic">f22/combustivel</span></header><div class="chart-box"><canvas id="chFuel"></canvas></div></section>
+    <section class="gs-card gs-chart"><header><h2>Ambiente</h2><span class="topic">f22/ambiente</span></header><div class="chart-box"><canvas id="chEnv"></canvas></div></section>
+
+    <section class="gs-card gs-link">
+      <header><h2>Link MQTT</h2></header>
+      <dl class="link-dl">
+        <dt>Fonte</dt><dd id="lkSource">—</dd>
+        <dt>Assinatura</dt><dd id="lkRoot">f22/#</dd>
+        <dt>Motor</dt><dd id="lkEngine">—</dd>
+        <dt>Intervalo</dt><dd id="lkInterval">—</dd>
+        <dt>Taxa</dt><dd id="lkRate">—</dd>
+        <dt>Mensagens</dt><dd id="lkTotal">0</dd>
+      </dl>
+      <p class="link-note"><b>QoS 0</b> telemetria contínua (nav, atitude, ambiente, motores) · <b>QoS 1</b> estado e eventos (combustível, radar, alertas, comandos) · <b>Retidas</b>: combustível, alertas e status chegam assim que o painel se conecta · <b>LWT</b>: se o motor cair, o broker publica <code>status.online = false</code>.</p>
+    </section>
+
+    <section class="gs-card gs-sensors">
+      <header><h2>Sensores por tópico</h2><span class="topic">valor · unidade · horário</span></header>
+      <div id="gsSensors" class="sensor-grid"></div>
+    </section>
+
+    <section class="gs-card gs-log">
+      <header>
+        <h2>Mensagens MQTT</h2>
+        <div class="gs-tools">
+          <select id="logFilter" aria-label="Filtrar tópico"><option value="">todos os tópicos</option></select>
+          <label class="gs-check"><input type="checkbox" id="logPause"> pausar</label>
+        </div>
+      </header>
+      <div class="log-wrap">
+        <table>
+          <thead><tr><th>Hora</th><th>Tópico</th><th>QoS</th><th>Retida</th><th>Bytes</th><th>Payload</th></tr></thead>
+          <tbody id="logBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

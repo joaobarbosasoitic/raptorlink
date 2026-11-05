@@ -1,0 +1,14 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: raptorlink-mosquitto
+    restart: unless-stopped
+    ports:
+      - "1883:1883" # MQTT (motor de simulação, MQTT Explorer)
+      - "9001:9001" # MQTT sobre WebSocket (painel web)
+    volumes:
+      - ./mosquitto/config:/mosquitto/config:ro
+      - mosquitto-data:/mosquitto/data # persistência das mensagens retidas
+
+volumes:
+  mosquitto-data:
