@@ -762,3 +762,93 @@ tr.enemy .msl-bar i { background: var(--red); }
   .seg button { padding: 6px 9px; }
   .status { min-width: 0; }
 }
+
+/* ================================================================ alerta "CAÇA ATINGIDO" */
+.hit-alert {
+  position: fixed;
+  left: 50%;
+  top: 34%;
+  transform: translate(-50%, -50%);
+  z-index: 5000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  animation: hit-shake 0.45s ease-out;
+}
+.hit-alert[hidden], .hit-flash[hidden] { display: none; }
+.hit-box {
+  position: relative;
+  padding: 14px 44px;
+  background: #1b0a0c;
+  border: 2px solid #ff3d3d;
+  border-radius: 4px;
+  box-shadow:
+    0 0 0 4px #1b0a0c,
+    0 0 0 5px rgba(255, 61, 61, 0.55),
+    0 0 28px rgba(255, 40, 40, 0.65),
+    0 0 70px rgba(255, 0, 0, 0.35),
+    inset 0 0 18px rgba(255, 40, 40, 0.35);
+  animation: hit-pulse 0.5s steps(1) infinite;
+}
+/* frisos verticais nas laterais, como no painel de referência */
+.hit-box::before, .hit-box::after {
+  content: "";
+  position: absolute;
+  top: 7px;
+  bottom: 7px;
+  width: 2px;
+  background: #ff3d3d;
+  box-shadow: 0 0 6px #ff3d3d;
+}
+.hit-box::before { left: 12px; }
+.hit-box::after { right: 12px; }
+.hit-box span {
+  display: block;
+  font-family: var(--sans);
+  font-weight: 700;
+  font-size: clamp(26px, 6vw, 52px);
+  letter-spacing: 0.18em;
+  line-height: 1.1;
+  color: #ff4848;
+  text-shadow: 0 0 6px rgba(255, 60, 60, 0.95), 0 0 18px rgba(255, 30, 30, 0.8), 0 0 36px rgba(255, 0, 0, 0.5);
+  white-space: nowrap;
+}
+.hit-sub {
+  margin: 0;
+  padding: 4px 12px;
+  border-radius: 3px;
+  background: rgba(27, 10, 12, 0.9);
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: #ffb3b3;
+  text-shadow: 0 0 6px rgba(255, 60, 60, 0.6);
+}
+.hit-flash {
+  position: fixed;
+  inset: 0;
+  z-index: 4999;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(255, 0, 0, 0) 45%, rgba(255, 0, 0, 0.38) 100%);
+  animation: hit-flash 1.4s ease-out 2;
+}
+@keyframes hit-pulse {
+  50% { border-color: #7a1a1a; box-shadow: 0 0 0 4px #1b0a0c, 0 0 0 5px rgba(255, 61, 61, 0.25), 0 0 10px rgba(255, 40, 40, 0.3); }
+}
+@keyframes hit-shake {
+  0% { transform: translate(-50%, -50%) scale(1.25); opacity: 0; }
+  30% { transform: translate(calc(-50% - 10px), -50%) scale(1); opacity: 1; }
+  50% { transform: translate(calc(-50% + 8px), -50%); }
+  70% { transform: translate(calc(-50% - 5px), -50%); }
+  100% { transform: translate(-50%, -50%); }
+}
+@keyframes hit-flash {
+  0% { opacity: 0; }
+  15% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hit-alert, .hit-box, .hit-flash { animation: none; }
+}

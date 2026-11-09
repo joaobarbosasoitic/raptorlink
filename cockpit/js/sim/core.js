@@ -349,7 +349,7 @@ export class SimCore {
             this.splash(tgt);
           } else this.endMissile(m, 'errou', 'MÍSSIL ERROU');
         } else if (Math.random() < 0.5) {
-          this.endMissile(m, 'acertou', 'AERONAVE ATINGIDA', 'aviso', 'AERONAVE_ATINGIDA');
+          this.endMissile(m, 'acertou', 'CAÇA ATINGIDO', 'aviso', 'AERONAVE_ATINGIDA', 8);
           this.damage = true;
         } else {
           this.endMissile(m, 'errou', 'MÍSSIL PASSOU');
@@ -363,10 +363,10 @@ export class SimCore {
     this.missiles = this.missiles.filter((m) => m.status === 'voo' || t - m.endT < 6);
   }
 
-  endMissile(m, status, msg, nivel = 'info', codigo = null) {
+  endMissile(m, status, msg, nivel = 'info', codigo = null, secs = 5) {
     m.status = status;
     m.endT = this.t;
-    if (msg) this.note(`${msg} ${m.id}`, nivel, 5, codigo || `MISSIL_${status.toUpperCase()}`);
+    if (msg) this.note(`${msg} ${m.id}`, nivel, secs, codigo || `MISSIL_${status.toUpperCase()}`);
   }
 
   // ---------------------------------------------------------------- alvo e armas

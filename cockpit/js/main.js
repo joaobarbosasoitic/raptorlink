@@ -95,6 +95,8 @@ function setSource(src) {
   resetState();
   snapView = true;
   ground.reset();
+  hideHit();
+  hitSeen.clear();
   if (src === 'mock') {
     link.disconnect();
     config.root = DEFAULT_ROOT;
@@ -410,6 +412,60 @@ function sounds(t) {
   prev.warnKey = ui.alerts.warnKey;
 }
 
+// ------------------------------------------------------------------ alerta "CAÇA ATINGIDO"
+const HIT_SHOW_MS = 6000;
+const hitSeen = new Set(); // impactos já anunciados (id do míssil ou mensagem do alerta)
+let hitTimer = null;
+
+function hideHit() {
+  clearTimeout(hitTimer);
+  $('hitAlert').hidden = true;
+  $('hitFlash').hidden = true;
+}
+
+function showHit(missileId) {
+  $('hitSub').textContent = `${missileId ? `Míssil ${missileId} · ` : ''}falha hidráulica A`;
+  $('hitAlert').hidden = false;
+  // reinicia as animações (tremor de entrada e vinheta vermelha)
+  for (const id of ['hitAlert', 'hitFlash']) {
+    const el = $(id);
+    el.hidden = false;
+    el.style.animation = 'none';
+    void el.offsetWidth;
+    el.style.animation = '';
+  }
+  [0, 0.16, 0.32, 0.6, 0.76, 0.92].forEach((d, i) => audio.tone(i % 2 ? 330 : 440, 0.13, d, 0.05, 'sawtooth'));
+  clearTimeout(hitTimer);
+  hitTimer = setTimeout(hideHit, HIT_SHOW_MS);
+}
+
+/** Detecta um impacto novo: alerta AERONAVE_ATINGIDA do motor ou míssil inimigo com estado "acertou". */
+function checkHit() {
+  const enemyHits = state.missiles.filter((m) => m.side === 'enemy' && m.status === 'hit');
+  const alert = state.engineAlerts.find((a) => a.code === 'AERONAVE_ATINGIDA');
+  let fresh = null;
+  for (const m of enemyHits) {
+    if (!hitSeen.has(m.id)) {
+      hitSeen.add(m.id);
+      fresh = fresh || { id: m.id };
+    }
+  }
+  if (alert) {
+    const id = alert.msg.match(/\b(E\d+)\b/)?.[1] || null;
+    const key = id || alert.msg;
+    if (!hitSeen.has(key)) {
+      hitSeen.add(key);
+      fresh = fresh || { id };
+    }
+  }
+  if (fresh) showHit(fresh.id);
+}
+
+$('hitAlert').addEventListener('click', hideHit);
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !$('hitAlert').hidden) hideHit();
+});
+
 function toggleMute() {
   ui.muted = !ui.muted;
   $('btnMute').textContent = ui.muted ? 'SOM OFF' : 'SOM ON';
@@ -482,6 +538,7 @@ function frame(now) {
   }
   ground.frame(now);
   updateTopbar();
+  checkHit();
   sounds(t);
   requestAnimationFrame(frame);
 }

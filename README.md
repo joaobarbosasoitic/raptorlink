@@ -154,6 +154,7 @@ O motor publica os alertas em `f22/alertas`, e o painel também verifica os limi
 | `COMBUSTIVEL_BAIXO` / `COMBUSTIVEL_BINGO` | aviso / cuidado | < 900 kg / < bingo (1 800 kg) |
 | `SUPERAQUECIMENTO_E/D` / `TEMP_ALTA_E/D` | aviso / cuidado | > 1 000 °C / > 950 °C (pós-combustão prolongada) |
 | `AMEACA_MISSIL` | aviso | lançamento de míssil detectado |
+| `AERONAVE_ATINGIDA` | aviso | míssil inimigo atingiu o F-22 → painel **CAÇA ATINGIDO** na tela (cockpit e estação de solo) + falha na hidráulica A |
 | `TURBULENCIA` | cuidado | turbulência > 0,6 (rajadas fortes) |
 | `MIRA_TRAVADA` | info | radar em STT |
 | `MOTOR_OFFLINE` / `SEM_TELEMETRIA` | cuidado | LWT recebido / nenhuma leitura há 3,5 s |
